@@ -5,6 +5,8 @@
     <format property="timestamp" pattern="yyyyMMddHHmmssSSS" locale="en"/>
   </tstamp>
 
+  <property name="parent.prj.dir" value="${basedir}"/>
+
   <property file="${basedir}/local.properties"/>
   <property file="${basedir}/base.properties"/>
   <property file="${basedir}/version.properties"/>
@@ -17,7 +19,7 @@
     <mkdir dir="${test.classes.dir}"/>
   </target>
 
-  <target name="clean" depends="init" description="Deletes libraries">
+  <target name="clean" depends="init" description="Deletes libraries and compiled classes">
     <delete includeemptydirs="true" verbose="true">
       <fileset dir="${compile.lib.dir}" includes="**/*"/>
       <fileset dir="${test.lib.dir}" includes="**/*"/>
