@@ -57,9 +57,25 @@
     </path>
   </path>
 
+  <path id="test.classpath">
+    <path>
+      <fileset dir="${test.lib.dir}" includes="*.jar"/>
+    </path>
+  </path>
+
   <target name="compile" description="Compiles java sources">
-    <javac srcdir="${java.dir}" destdir="${classes.dir}">
+    <javac srcdir="${java.dir}" destdir="${classes.dir}" includeantruntime="false" target="1.8">
       <classpath refid="compile.classpath"/>
+    </javac>
+  </target>
+
+  <target name="compile-test" description="Compiles java tests">
+    <javac srcdir="${test.java.dir}" destdir="${test.classes.dir}" includeantruntime="false" target="1.8">
+      <classpath>
+        <path location="${classes.dir}"/>
+        <path refid="compile.classpath"/>
+        <path refid="test.classpath"/>
+      </classpath>
     </javac>
   </target>
 
@@ -71,6 +87,24 @@
     <jar basedir="${classes.dir}" destfile="${target.dir}/${integration.jar.name}"/>
   </target>
 
-  <target name="package" depends="clean,retrieve,compile,build" description="Creates a distribution package">
+  <target name="test" depends="compile-test">
+    <junit printsummary="yes" haltonfailure="no" fork="true" failureproperty="test.failed">
+      <classpath>
+        <path refid="compile.classpath"/>
+        <path refid="test.classpath"/>
+        <pathelement location="${test.classes.dir}"/>
+        <pathelement location="${classes.dir}"/>
+      </classpath>
+
+      <batchtest todir="${target.dir}">
+        <fileset dir="${test.java.dir}" includes="**/*.java"/>
+        <formatter type="plain"/>
+      </batchtest>
+    </junit>
+
+    <fail message="Tests failed" if="test.failed"/>
+  </target>
+
+  <target name="package" depends="clean,retrieve,compile,test,build" description="Creates a distribution package">
   </target>
 </project>
