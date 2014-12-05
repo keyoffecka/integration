@@ -30,6 +30,7 @@ public class DelegatingEntityManager implements EntityManager {
   private static final Logger LOG = LoggerFactory.getLogger(DelegatingEntityManager.class);
 
   private final Map<Thread, EntityManager> ems = Maps.newHashMap();
+  Map<Thread, EntityManager> getEMS() {return this.ems;}
 
   private final String puName;
   public String getPUName() {return this.puName;}
@@ -50,14 +51,14 @@ public class DelegatingEntityManager implements EntityManager {
   EntityManager getEM() {
     EntityManager em = null;
 
-    synchronized(this.ems) {
-      Thread thread = Thread.currentThread();
-      em = this.ems.get(thread);
+    synchronized(this.getEMS()) {
+      Thread thread = this.getCurrentThread();
+      em = this.getEMS().get(thread);
       if (em == null) {
         DelegatingEntityManager.LOG.debug("Acquiring a new entity manager of the {} persistence unit.", EntityManagerFactoryStore.getPUName(this.puName));
 
         em = this.store.acquire(this.puName, thread);
-        this.ems.put(thread, em);
+        this.getEMS().put(thread, em);
       } else {
         DelegatingEntityManager.LOG.debug("Found an entity manager of the {} persistence unit.", EntityManagerFactoryStore.getPUName(this.puName));
       }
@@ -66,15 +67,19 @@ public class DelegatingEntityManager implements EntityManager {
     return em;
   }
 
+  Thread getCurrentThread() {
+    return Thread.currentThread();
+  }
+
   /**
    * Closes all underlying entity managers.
    * Should be called within the bean which has produced this delegating entity manager.
    */
   @Override
   public void close() {
-    synchronized (this.ems) {
-      this.ems.forEach((thread, em) -> this.store.release(this.puName, thread));
-      this.ems.clear();
+    synchronized (this.getEMS()) {
+      this.getEMS().forEach((thread, em) -> this.store.release(this.puName, thread));
+      this.getEMS().clear();
 
       DelegatingEntityManager.LOG.debug("Closed the delegating entity manager of the {} persistence unit.", EntityManagerFactoryStore.getPUName(this.puName));
     }
