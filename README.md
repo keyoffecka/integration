@@ -18,7 +18,7 @@ the **javax.transaction.Transactional.TxType.REQUIRED** transaction propagation 
 
 There is a delegating entity manager implemented which lazily initializes underlying real entity manager
 which allows to use them in transactional methods since the actual entity manager creations happens in the same place (thread)
-where the entity manager is used. These guarantees that the created instance is associated with the transaction effective
+where the entity manager is used. This guarantees that the created instance is associated with the transaction effective
 for the current transactional method.
 
 ##Motivation
