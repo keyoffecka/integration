@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="integration" default="package" xmlns:ivy="antlib:org.apache.ivy.ant">
+  <tstamp>
+    <format property="timestamp" pattern="yyyyMMddHHmmssSSS" locale="en"/>
+  </tstamp>
+
+  <property file="${basedir}/local-version.properties"/>
+  <property file="${basedir}/version.properties"/>
+
+  <property file="${basedir}/local.properties"/>
+  <property file="${basedir}/build.properties"/>
+  <property file="${basedir}/base.properties"/>
+
+  <target name="init-target" description="Initializes the target directory">
+    <mkdir dir="${classes.dir}"/>
+    <mkdir dir="${test.classes.dir}"/>
+  </target>
+
+  <target name="init" description="Creates folders where libraries will be installed">
+    <mkdir dir="${compile.lib.dir}"/>
+    <mkdir dir="${runtime.lib.dir}"/>
+    <mkdir dir="${provided.lib.dir}"/>
+    <mkdir dir="${test.lib.dir}"/>
+  </target>
+
+  <target name="clean-target" depends="init-target" description="Cleans the target directory">
+    <delete includeemptydirs="true" verbose="true">
+      <fileset dir="${target.dir}">
+        <include name="**/*"/>
+        <exclude name="${classes.dir.name}"/>
+        <exclude name="${test.classes.dir.name}"/>
+      </fileset>
+    </delete>
+  </target>
+
+  <target name="clean" depends="init,clean-target" description="Deletes libraries and compiled classes">
+    <delete includeemptydirs="true" verbose="true">
+      <fileset dir="${compile.lib.dir}" includes="**/*"/>
+      <fileset dir="${runtime.lib.dir}" includes="**/*"/>
+      <fileset dir="${provided.lib.dir}" includes="**/*"/>
+      <fileset dir="${test.lib.dir}" includes="**/*"/>
+    </delete>
+  </target>
+
+  <target name="retrieve" depends="init" description="Retrieves jars">
+    <available property="has.ivy.cache.dir" file="${ivy.cache.dir}"/>
+
+    <fail unless="has.ivy.cache.dir" message="Please set ivy.cache.dir=/path/to/your/ivy/cache/dir in your local.properties file."/>
+
+    <ivy:configure file="ivysettings.xml"/>
+
+    <ivy:retrieve conf="compile"
+                  type="source,jar,bundle"
+                  pattern="${compile.lib.dir}/([classifier])/[module]-[revision](-[classifier]).[ext]"
+                  transitive="false"
+                  sync="false"/>
+
+    <ivy:retrieve conf="test"
+                  type="source,jar,bundle"
+                  pattern="${test.lib.dir}/([classifier])/[module]-[revision](-[classifier]).[ext]"
+                  transitive="false"
+                  sync="false"/>
+  </target>
+
+  <path id="compile.classpath">
+    <path>
+      <fileset dir="${compile.lib.dir}" includes="*.jar"/>
+      <fileset dir="${runtime.lib.dir}" includes="*.jar"/>
+      <fileset dir="${provided.lib.dir}" includes="*.jar"/>
+    </path>
+  </path>
+
+  <path id="test.classpath">
+    <path>
+      <fileset dir="${test.lib.dir}" includes="*.jar"/>
+    </path>
+  </path>
+
+  <target name="compile" description="Compiles java sources">
+    <javac srcdir="${java.dir}" destdir="${classes.dir}" includeantruntime="false" target="1.8">
+      <classpath refid="compile.classpath"/>
+    </javac>
+  </target>
+
+  <target name="compile-test" description="Compiles java tests">
+    <javac srcdir="${test.java.dir}" destdir="${test.classes.dir}" includeantruntime="false" target="1.8">
+      <classpath>
+        <path location="${classes.dir}"/>
+        <path refid="compile.classpath"/>
+        <path refid="test.classpath"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="build" description="Creates a jar package">
+    <copy todir="${classes.dir}">
+      <fileset dir="${res.dir}"/>
+    </copy>
+
+    <jar basedir="${classes.dir}" destfile="${target.dir}/${integration.jar.name}"/>
+  </target>
+
+  <target name="test" depends="compile-test">
+    <junit printsummary="yes" haltonfailure="no" fork="true" failureproperty="test.failed">
+      <classpath>
+        <path refid="compile.classpath"/>
+        <path refid="test.classpath"/>
+        <pathelement location="${test.classes.dir}"/>
+        <pathelement location="${classes.dir}"/>
+      </classpath>
+
+      <batchtest todir="${target.dir}">
+        <fileset dir="${test.java.dir}" includes="**/*.java"/>
+        <formatter type="plain"/>
+      </batchtest>
+    </junit>
+
+    <fail message="Tests failed" if="test.failed"/>
+  </target>
+
+  <target name="fast-package" depends="clean-target,compile,test,build" description="A helper target creating a distribution package without fetching dependencies assuming they have already been fetched.">
+  </target>
+
+  <target name="package" depends="clean,retrieve,compile,test,build" description="Creates a distribution package">
+  </target>
+</project>
