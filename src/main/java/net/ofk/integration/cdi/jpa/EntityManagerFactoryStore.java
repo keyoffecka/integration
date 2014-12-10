@@ -1,5 +1,6 @@
 package net.ofk.integration.cdi.jpa;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -30,7 +31,10 @@ public class EntityManagerFactoryStore {
   private static final String DEFAULT_PU_NAME = "default";
 
   private final Map<String, EntityManagerFactory> emfs = Maps.newHashMap();
+  Map<String, EntityManagerFactory> getEMFs() {return this.emfs;}
+
   private final Map<String, Map<Thread, EntityManagerFactoryStore.Context>> contextMap = Maps.newHashMap();
+  Map<String, Map<Thread, EntityManagerFactoryStore.Context>> getContextMap() {return this.contextMap;}
 
   /**
    * Returns a printable name of the persistence unit.
@@ -56,17 +60,28 @@ public class EntityManagerFactoryStore {
   EntityManagerFactory getEMF(final String puName) {
     EntityManagerFactory emf = null;
 
-    synchronized (this.emfs) {
-      emf = this.emfs.get(puName);
+    synchronized (this.getEMFs()) {
+      emf = this.getEMFs().get(puName);
       if (emf == null) {
-        emf = Persistence.createEntityManagerFactory(puName);
-        this.emfs.put(puName, emf);
+        emf = this.createEMF(puName);
+        this.getEMFs().put(puName, emf);
 
         EntityManagerFactoryStore.LOG.debug("Created a new entity manager factory of the {} persistence unit.", EntityManagerFactoryStore.getPUName(puName));
       }
     }
 
     return emf;
+  }
+
+  /**
+   * Creates an entity manager factory.
+   * Needed fo testing.
+   *
+   * @param puName - name of the persistence context.
+   * @return new instance of the persistence factory.
+   */
+  EntityManagerFactory createEMF(final String puName) {
+    return Persistence.createEntityManagerFactory(puName);
   }
 
   /**
@@ -80,13 +95,13 @@ public class EntityManagerFactoryStore {
   public EntityManager acquire(final String puName, final Thread thread) {
     EntityManager em = null;
 
-    synchronized (this.contextMap) {
-      Map<Thread, EntityManagerFactoryStore.Context> contexts = this.contextMap.get(puName);
+    synchronized (this.getContextMap()) {
+      Map<Thread, EntityManagerFactoryStore.Context> contexts = this.getContextMap().get(puName);
       if (contexts == null) {
         EntityManagerFactoryStore.LOG.debug("Entity managers of the {} persistence unit do not exist.", EntityManagerFactoryStore.getPUName(puName));
 
         contexts = Maps.newHashMap();
-        this.contextMap.put(puName, contexts);
+        this.getContextMap().put(puName, contexts);
       }
       EntityManagerFactoryStore.Context context = contexts.get(thread);
       if (context == null) {
@@ -117,8 +132,8 @@ public class EntityManagerFactoryStore {
    * @param thread - thread associated with the entity manager.
    */
   public void release(final String puName, final Thread thread) {
-    synchronized (this.contextMap) {
-      Map<Thread, EntityManagerFactoryStore.Context> contexts = this.contextMap.get(puName);
+    synchronized (this.getContextMap()) {
+      Map<Thread, EntityManagerFactoryStore.Context> contexts = this.getContextMap().get(puName);
       if (contexts == null) {
         EntityManagerFactoryStore.LOG.warn("Entity managers of the {} persistence unit were not created.", EntityManagerFactoryStore.getPUName(puName));
       } else {
@@ -133,7 +148,7 @@ public class EntityManagerFactoryStore {
             contexts.remove(thread);
 
             if (contexts.isEmpty()) {
-              this.contextMap.remove(puName);
+              this.getContextMap().remove(puName);
             }
             EntityManagerFactoryStore.LOG.debug("Released the entity manager of the {} persistence unit.", EntityManagerFactoryStore.getPUName(puName));
           } else {
@@ -148,15 +163,22 @@ public class EntityManagerFactoryStore {
    * Holds an entity manager and the number of how many times
    * the manager was acquired.
    */
-  private static class Context {
+  static class Context {
     private final EntityManager em;
     public EntityManager getEM() {return this.em;}
 
-    private long count = 1;
+    private long count;
     public long getCount() {return this.count;}
 
-    private Context(final EntityManager em) {
+    Context(final EntityManager em) {
+      this(em, 1);
+    }
+
+    Context(final EntityManager em, final long count) {
+      Preconditions.checkArgument(em != null);
+
       this.em = em;
+      this.count = count;
     }
 
     public void inc() {
@@ -165,6 +187,25 @@ public class EntityManagerFactoryStore {
 
     public void dec() {
       this.count-= 1;
+    }
+
+    @Override
+    public boolean equals(final Object object) {
+      boolean result = false;
+
+      if (object != null && object.getClass() == this.getClass()) {
+        EntityManagerFactoryStore.Context ctx = (EntityManagerFactoryStore.Context) object;
+
+        result = this.getCount() == ctx.getCount() && this.getEM().equals(ctx.getEM());
+      }
+
+      return result;
+    }
+
+    @Override
+    public int hashCode() {
+      int result = Long.valueOf(this.getCount()).hashCode() ^ this.getEM().hashCode();
+      return result;
     }
   }
 }
